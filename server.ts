@@ -293,7 +293,8 @@ async function startServer() {
         referrals: 0, 
         referralHistory: [],
         referredBy: (referredBy && referredBy !== tiktokId && db.users[referredBy]) ? referredBy : null,
-        role: isAdmin ? 'admin' : 'user'
+        role: isAdmin ? 'admin' : 'user',
+        referralCode: tiktokId.toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase()
       };
       
       pushEvent(`Thành viên mới ${tiktokId} vừa gia nhập cộng đồng! 👋`);
@@ -310,6 +311,12 @@ async function startServer() {
     // Auto update role to admin if matching
     if (isAdmin && user.role !== 'admin') {
       user.role = 'admin';
+    }
+    
+    // Ensure referralCode exists
+    if (!user.referralCode) {
+        user.referralCode = tiktokId.toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+        await writeDB(db);
     }
 
     const notifications = user.notifications || [];
@@ -806,6 +813,29 @@ async function startServer() {
     db.config = { ...db.config, ...req.body };
     await writeDB(db);
     res.json({ success: true });
+  });
+
+  // Admin Get Users
+  app.get('/api/admin/users', async (req, res) => {
+    const db = await readDB();
+    const users = Object.keys(db.users).map(tiktokId => ({
+        tiktokId,
+        ...db.users[tiktokId]
+    }));
+    res.json(users);
+  });
+
+  // Admin Update User Balance
+  app.post('/api/admin/users/balance', async (req, res) => {
+    const { tiktokId, balance } = req.body;
+    const db = await readDB();
+    if (db.users[tiktokId]) {
+      db.users[tiktokId].balance = balance;
+      await writeDB(db);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
   });
 
   app.get('/api/admin/winners', async (req, res) => {

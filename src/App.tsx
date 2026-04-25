@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'motion/react';
 import { Chatbot } from './components/Chatbot';
 import { CartView } from './components/CartView';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 import { 
   Home, 
   CreditCard, 
@@ -12,8 +18,10 @@ import {
   Building2,
   Copy,
   Smartphone, 
-  AlertCircle, 
-  CheckCircle2, 
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  AlertTriangle,
   Settings,
   Gift,
   Package,
@@ -37,63 +45,72 @@ import {
   Shield,
   Bell,
   Megaphone,
-  Calendar
+  Calendar,
+  Search
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-// --- Assets ---
 const SOUND_OPEN = "https://assets.mixkit.co/active_storage/sfx/2004/2004-preview.mp3"; // Pop
-const SOUND_WIN = "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"; // Fanfare
-const SOUND_SUCCESS = "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"; // Success ping
+const SOUND_WIN = "https://assets.mixkit.co/active_storage/sfx/1990/1990-preview.mp3"; // Cash register
+const SOUND_SUCCESS = "https://assets.mixkit.co/active_storage/sfx/1990/1990-preview.mp3"; // Cash register
 const SOUND_SHATTER = "https://assets.mixkit.co/active_storage/sfx/285/285-preview.mp3"; // Glass break
-const SOUND_EVENT = "https://assets.mixkit.co/active_storage/sfx/1114/1114-preview.mp3"; // Notification ping
+const SOUND_EVENT = "https://assets.mixkit.co/active_storage/sfx/1001/1001-preview.mp3"; // Soft Chime
 const SOUND_LOSE = "https://assets.mixkit.co/active_storage/sfx/136/136-preview.mp3"; // Game Over
 const SOUND_DICE = "https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3"; // Cute dice/spring sound
 
 
 type ToastEvent = { msg: string, type: 'success' | 'error' | 'info' | 'warning' };
 const toastListeners = new Set<(e: ToastEvent) => void>();
-export const toast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
-  toastListeners.forEach(l => l({ msg, type }));
+export const toast = (msg: string | any, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+  const message = typeof msg === 'string' ? msg : JSON.stringify(msg);
+  toastListeners.forEach(l => l({ msg: message, type }));
+};
+
+const TOAST_CONFIG = {
+  success: { icon: CheckCircle2, iconClass: 'text-green-400', bg: 'bg-green-950/90', border: 'border-green-500/30' },
+  error: { icon: AlertCircle, iconClass: 'text-red-400', bg: 'bg-red-950/90', border: 'border-red-500/30' },
+  info: { icon: Info, iconClass: 'text-blue-400', bg: 'bg-blue-950/90', border: 'border-blue-500/30' },
+  warning: { icon: AlertTriangle, iconClass: 'text-yellow-400', bg: 'bg-yellow-950/90', border: 'border-yellow-500/30' }
 };
 
 const ToastContainer = () => {
-  const [toastData, setToastData] = React.useState<ToastEvent | null>(null);
+  const [toasts, setToasts] = React.useState<({id: number} & ToastEvent)[]>([]);
   React.useEffect(() => {
-    let timeoutId: any;
     const l = (e: ToastEvent) => {
-      setToastData(e);
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => setToastData(null), 3000);
+      const id = Date.now();
+      setToasts(prev => [...prev, { ...e, id }]);
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 3000);
     };
     toastListeners.add(l);
-    return () => { toastListeners.delete(l); if(timeoutId) clearTimeout(timeoutId); };
+    return () => toastListeners.delete(l);
   }, []);
   
   return (
-    <AnimatePresence>
-      {toastData && (
-        <motion.div
-           initial={{ opacity: 0, y: -50, scale: 0.9 }}
-           animate={{ opacity: 1, y: 0, scale: 1 }}
-           exit={{ opacity: 0, scale: 0.9, y: -20 }}
-           className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900/90 backdrop-blur-md border border-white/10 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 w-max max-w-[90vw]"
-        >
-           {toastData.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <CheckCircle2 className="w-5 h-5 text-green-500" />}
-           <span className="text-white font-bold text-sm">{toastData.msg}</span>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none">
+      <AnimatePresence>
+        {toasts.map(toast => {
+          const config = TOAST_CONFIG[toast.type] || TOAST_CONFIG.info;
+          const Icon = config.icon;
+          return (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: -20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, y: -20 }}
+              className={cn("backdrop-blur-md px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 w-max max-w-[90vw] border pointer-events-auto", config.bg, config.border)}
+            >
+              <Icon className={cn("w-5 h-5", config.iconClass)} />
+              <span className="text-white font-bold text-sm whitespace-pre-line">{toast.msg}</span>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
   );
 };
 
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 const playSound = (url: string) => {
   if (typeof window !== 'undefined' && window.__SOUND_ENABLED__ === false) return;
@@ -112,6 +129,7 @@ interface UserData {
   balance: number;
   referrals?: number;
   referredBy?: string;
+  referralCode?: string;
   lastCheckin?: string;
   inventory?: any[];
   referralHistory?: { invitedUser: string, bonus: number, date: string }[];
@@ -216,10 +234,11 @@ export default function App() {
   const [result, setResult] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [config, setConfig] = useState<Config | null>(null);
-  const [activeNotif, setActiveNotif] = useState<string | null>(null);
+
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [screenShake, setScreenShake] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [eventsState, setEventsState] = useState<{ envelope: any, shakeEventActive: boolean }>({ envelope: null, shakeEventActive: false });
   const [isShaking, setIsShaking] = useState(false);
   const [insuranceActive, setInsuranceActive] = useState(false);
@@ -255,10 +274,9 @@ export default function App() {
           // Play notification sound
           playSound(SOUND_EVENT);
           
-          // Display the chronologically last event as the popup
+          // Display the chronologically last event as the toast
           const latestEvent = events[events.length - 1];
-          setActiveNotif(latestEvent.message);
-          setTimeout(() => setActiveNotif(null), 5000);
+          toast(latestEvent.message, 'info');
           
           lastTime = latestEvent.timestamp;
         }
@@ -305,20 +323,22 @@ export default function App() {
     const poll = async () => {
       try {
         const res = await fetch(`/api/notifications/${encodeURIComponent(user.tiktokId)}`);
-        const notifs = await res.json();
-        if (Array.isArray(notifs) && notifs.length > 0) {
-          notifs.forEach(msg => {
-            setActiveNotif(msg.title || msg);
-            playSound(SOUND_SUCCESS);
-            setTimeout(() => setActiveNotif(null), 5000);
-          });
-          // Refresh user data to update balance
-          handleLogin(user.tiktokId, (user as any).pin);
+        if (res.ok) {
+          const notifs = await res.json();
+          if (Array.isArray(notifs) && notifs.length > 0) {
+            notifs.forEach(msg => {
+              toast(msg.title || msg, 'success');
+              playSound(SOUND_SUCCESS);
+            });
+            handleLogin(user.tiktokId, (user as any).pin);
+          }
         }
 
         const eventsRes = await fetch('/api/events-state');
-        const evData = await eventsRes.json();
-        setEventsState(evData);
+        if (eventsRes.ok) {
+          const evData = await eventsRes.json();
+          setEventsState(evData);
+        }
 
       } catch (e) {
         console.error("Poll error", e);
@@ -333,9 +353,8 @@ export default function App() {
     if (user && user.balance < 20000 && user.notificationsEnabled !== false) {
       if (!sessionStorage.getItem('low_balance_warned')) {
         setTimeout(() => {
-          setActiveNotif("⚠️ Số dư của bạn đang thấp, hãy nạp thẻ để không gián đoạn cuộc vui nhé!");
+          toast("⚠️ Số dư của bạn đang thấp, hãy nạp thẻ để không gián đoạn cuộc vui nhé!", 'warning');
           playSound(SOUND_EVENT);
-          setTimeout(() => setActiveNotif(null), 5000);
         }, 1000); // 1s delay
         sessionStorage.setItem('low_balance_warned', 'true');
       }
@@ -800,6 +819,27 @@ export default function App() {
           </div>
           <span className="font-black text-xl tracking-tighter text-white italic uppercase">BENTO<span className="text-yellow-400">BOX</span></span>
         </div>
+
+        <div className="flex-1 mx-4 relative group">
+          <input 
+              type="text" 
+              placeholder="Tìm kiếm sản phẩm..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-800/50 border border-white/10 text-white rounded-full pl-4 pr-10 py-2 text-xs focus:outline-none focus:border-yellow-400 focus:bg-slate-900 transition-all duration-200"
+          />
+          {searchQuery ? (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-2 text-slate-400 hover:text-white"
+            >
+              <Search className="w-4 h-4 rotate-45" />
+            </button>
+          ) : (
+            <Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-500" />
+          )}
+        </div>
+
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p className="text-[9px] text-slate-500 font-black uppercase leading-tight tracking-widest">{user.shopName || user.tiktokId}</p>
@@ -807,7 +847,7 @@ export default function App() {
               {user.balance.toLocaleString()}đ
             </p>
           </div>
-          {user.avatarUrl ? (
+          {user.avatarUrl && typeof user.avatarUrl === 'string' && user.avatarUrl.trim().length > 0 ? (
             <img src={user.avatarUrl} alt="Avatar" className="w-10 h-10 rounded-full border-2 border-white/10 object-cover shadow-lg" />
           ) : (
             <div className="w-10 h-10 rounded-full bg-white/5 border-2 border-white/10 flex items-center justify-center">
@@ -832,7 +872,7 @@ export default function App() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
           >
-            {view === 'home' && <HomeView key="home" user={user} setUser={setUser} onOpen={requestOpenBox} onQuickOpen={handleMultiOpen} setView={setView} />}
+            {view === 'home' && <HomeView key="home" user={user} setUser={setUser} onOpen={requestOpenBox} onQuickOpen={handleMultiOpen} setView={setView} searchQuery={searchQuery} />}
             {view === 'spin' && <SpinView key="spin" user={user} setUser={setUser} setScreenShake={setScreenShake} />}
             {view === 'recharge' && <RechargeView key="recharge" user={user} config={config} prefill={rechargeDraft} onUsedPrefill={() => setRechargeDraft(null)} />}
             {view === 'collection' && <CollectionView key="collection" user={user} setUser={setUser} />}
@@ -1383,26 +1423,7 @@ export default function App() {
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {activeNotif && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8, y: -50 }}
-            transition={{ type: "spring", stiffness: 200, damping: 20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-gradient-to-r from-red-600/90 to-fuchsia-600/90 backdrop-blur-2xl border border-white/40 p-4 rounded-full shadow-[0_20px_50px_rgba(220,38,38,0.6)] flex items-center gap-4 pr-8 w-[90%] max-w-sm pointer-events-none"
-          >
-            <div className="absolute inset-0 bg-white/20 rounded-[inherit] overflow-hidden">
-               <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.8)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_1s_infinite]" />
-            </div>
-            <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(250,204,21,1)] relative z-10 animate-bounce-subtle">
-              <Activity className="w-7 h-7 text-red-900" />
-            </div>
-            <div className="flex flex-col relative z-10 w-full">
-              <p className="text-[11px] text-white font-black drop-shadow-md truncate">{activeNotif}</p>
-              <p className="text-[9px] text-yellow-300 font-bold uppercase tracking-widest leading-none mt-1">SIÊU PHẨM MỚI NHẤT ⚡</p>
-            </div>
-          </motion.div>
-        )}
+        {/* Notification banner removed, using ToastContainer instead */}
       </AnimatePresence>
 
       {/* Multi-Open Modal */}
@@ -1576,11 +1597,12 @@ const MiniGameBento: React.FC<{ setView: (view: any) => void }> = ({ setView }) 
   );
 };
 
-const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen: (id: string) => void, onQuickOpen: (id: string, count: number) => void, setView: (view: any) => void }> = ({ user, setUser, onOpen, onQuickOpen, setView }) => {
+const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen: (id: string) => void, onQuickOpen: (id: string, count: number) => void, setView: (view: any) => void, searchQuery: string }> = ({ user, setUser, onOpen, onQuickOpen, setView, searchQuery }) => {
   const [boxes, setBoxes] = useState<any[]>([]);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [jackpot, setJackpot] = useState<number>(0);
+  const filteredBoxes = boxes.filter(box => box.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   useEffect(() => {
     fetch('/api/admin/config').then(res => res.json()).then(data => setBoxes(data.prices || []));
@@ -1599,6 +1621,13 @@ const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen:
     }, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const suggestRandomBox = () => {
+    if (boxes.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * boxes.length);
+    const box = boxes[randomIndex];
+    toast(`🎲 Gợi ý: Hãy thử vận may với hộp ${box.name}!`, 'info');
+  };
 
   return (
     <motion.div 
@@ -1673,19 +1702,38 @@ const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen:
       <MiniGameBento setView={setView} />
 
       {/* Bento Grid Boxes */}
+      <div className="mb-4 text-center">
+        <button 
+           onClick={suggestRandomBox}
+           className="bg-purple-600/20 text-purple-300 font-bold px-6 py-2 rounded-full text-xs hover:bg-purple-600/30 transition-all border border-purple-500/30 shadow-sm"
+        >
+          🎲 Gợi ý hộp ngẫu nhiên
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-4">
-        {boxes.map((box, idx) => {
-          const isWide = idx % 3 === 0; // Every 3rd box is wide (e.g. 0, 3, 6)
-          return (
-          <motion.div 
-            key={box.id}
-            whileHover={{ scale: 1.03, rotateX: 2, rotateY: -2, boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}
-            whileTap={{ scale: 0.95 }}
-            className={cn(
-              "rounded-[2rem] p-0.5 relative overflow-hidden shadow-xl transition-all duration-300 group cursor-pointer",
-              isWide ? "bg-gradient-to-br from-yellow-300 to-yellow-600 col-span-2 min-h-[11rem] hover:animate-glow-pulse" : "bg-gradient-to-br from-white/10 to-white/5 border border-white/10 h-auto min-h-[14rem] hover:border-yellow-400/50 hover:shadow-[0_0_30px_rgba(250,204,21,0.2)]"
-            )}
-          >
+        {filteredBoxes.length === 0 ? (
+          <div className="col-span-2 py-10 text-center text-slate-500 font-medium">
+            <p className="text-sm">Không tìm thấy sản phẩm nào phù hợp.</p>
+            <p className="text-xs mt-1">Hãy thử tìm kiếm với từ khóa khác.</p>
+          </div>
+        ) : (
+          filteredBoxes.map((box, idx) => {
+            const isWide = idx % 3 === 0; // Every 3rd box is wide (e.g. 0, 3, 6)
+            return (
+              <motion.div 
+                key={box.id}
+                whileHover={{ 
+                  scale: 1.03, 
+                  rotate: [-2, 2, -2, 2, 0],
+                  boxShadow: "0 20px 40px rgba(0,0,0,0.4)" 
+                }}
+                transition={{ duration: 0.4 }}
+                whileTap={{ scale: 0.95 }}
+                className={cn(
+                  "rounded-[2rem] p-0.5 relative overflow-hidden shadow-xl transition-all duration-300 group cursor-pointer",
+                  isWide ? "bg-gradient-to-br from-yellow-300 to-yellow-600 col-span-2 min-h-[11rem] hover:animate-glow-pulse" : "bg-gradient-to-br from-white/10 to-white/5 border border-white/10 h-auto min-h-[14rem] hover:border-yellow-400/50 hover:shadow-[0_0_30px_rgba(250,204,21,0.2)]"
+                )}
+              >
             <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 translate-x-[-150%] skew-x-[-45deg] group-hover:animate-sweep pointer-events-none z-20" />
             <div className={cn(
               "h-full rounded-[1.9rem] p-5 flex flex-col justify-between items-center text-center relative overflow-hidden",
@@ -1757,7 +1805,9 @@ const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen:
               )}
             </div>
           </motion.div>
-        )})}
+            )
+          })
+        )}
       </div>
 
       {/* Leaderboard */}
@@ -1893,7 +1943,10 @@ const RechargeView: React.FC<{ user: UserData, config: Config | null, prefill?: 
         ].map(t => (
           <button 
             key={t.id}
-            onClick={() => setMethod(t.id as any)}
+            onClick={() => {
+              playSound(SOUND_EVENT);
+              setMethod(t.id as any);
+            }}
             className={cn(
               "flex-1 py-3 rounded-xl flex flex-col items-center gap-1 transition-all",
               method === t.id ? "bg-yellow-500 text-red-900 shadow-lg" : "text-slate-500 hover:text-slate-300"
@@ -1916,7 +1969,10 @@ const RechargeView: React.FC<{ user: UserData, config: Config | null, prefill?: 
                 <select 
                   className="w-full bg-black/40 border-2 border-white/5 rounded-2xl px-4 py-4 font-bold text-white focus:border-yellow-500 focus:outline-none transition-all appearance-none"
                   value={formData.type}
-                  onChange={e => setFormData({ ...formData, type: e.target.value })}
+                  onChange={e => {
+                    playSound(SOUND_EVENT);
+                    setFormData({ ...formData, type: e.target.value });
+                  }}
                 >
                   <option>VIETTEL</option>
                   <option>MOBIFONE</option>
@@ -1930,7 +1986,10 @@ const RechargeView: React.FC<{ user: UserData, config: Config | null, prefill?: 
                 <select 
                   className="w-full bg-black/40 border-2 border-white/5 rounded-2xl px-4 py-4 font-bold text-white focus:border-yellow-500 focus:outline-none transition-all appearance-none"
                   value={formData.amount}
-                  onChange={e => setFormData({ ...formData, amount: e.target.value })}
+                  onChange={e => {
+                    playSound(SOUND_EVENT);
+                    setFormData({ ...formData, amount: e.target.value });
+                  }}
                 >
                   {[20000, 50000, 100000, 200000, 500000].map(v => (
                     <option key={v} value={v}>{v.toLocaleString()}đ</option>
@@ -1946,6 +2005,7 @@ const RechargeView: React.FC<{ user: UserData, config: Config | null, prefill?: 
                 placeholder="Nhập Serial..."
                 className="w-full bg-black/40 border-2 border-white/5 rounded-2xl px-5 py-4 font-bold text-white focus:border-yellow-500 focus:outline-none"
                 value={formData.serial}
+                onFocus={() => playSound(SOUND_EVENT)}
                 onChange={e => setFormData({ ...formData, serial: e.target.value })}
               />
             </div>
@@ -1956,6 +2016,7 @@ const RechargeView: React.FC<{ user: UserData, config: Config | null, prefill?: 
                 placeholder="Nhập Mã thẻ..."
                 className="w-full bg-black/40 border-2 border-white/5 rounded-2xl px-5 py-4 font-bold text-white focus:border-yellow-500 focus:outline-none"
                 value={formData.code}
+                onFocus={() => playSound(SOUND_EVENT)}
                 onChange={e => setFormData({ ...formData, code: e.target.value })}
               />
             </div>
@@ -2047,6 +2108,7 @@ const RechargeView: React.FC<{ user: UserData, config: Config | null, prefill?: 
                 type="number" 
                 placeholder="Ví dụ: 100000"
                 className="w-full bg-black/40 border-2 border-white/5 rounded-2xl px-5 py-4 font-bold text-white focus:border-yellow-500 focus:outline-none"
+                onFocus={() => playSound(SOUND_EVENT)}
                 onChange={e => setFormData({ ...formData, amount: e.target.value })}
               />
             </div>
@@ -2702,13 +2764,13 @@ const AccountView: React.FC<{ user: UserData, setUser: (u: any) => void, onLogou
                  </div>
                  <div>
                    <p className="font-black text-xs text-gray-800 uppercase tracking-tighter">Chia Sẻ & Mời Bạn</p>
-                   <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest leading-none mt-1">Đã mời: {user?.referrals || 0}/1 người</p>
+                   <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest leading-none mt-1">Đã mời: {user?.referrals || 0}/1 người | Mã: {user?.referralCode || user?.tiktokId}</p>
                  </div>
                </div>
                <button 
                   onClick={async () => {
                     if ((user?.referrals || 0) < 1) {
-                      const link = `${window.location.origin}/?ref=${encodeURIComponent(user?.tiktokId || '')}`;
+                      const link = `${window.location.origin}/?ref=${encodeURIComponent(user?.referralCode || user?.tiktokId || '')}`;
                       try {
                         await navigator.clipboard.writeText(link);
                         toast(`Đã copy link mời! Gửi cho bạn bè ngay nhé:\n${link}`);
@@ -3075,12 +3137,13 @@ const AdminPanelView = () => {
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [winners, setWinners] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]); // USER STATE
   const [adminStats, setAdminStats] = useState<any>(null);
   const [vouchers, setVouchers] = useState<any>({});
   const [newVoucherCode, setNewVoucherCode] = useState('');
   const [newVoucherAmount, setNewVoucherAmount] = useState('');
   const [newVoucherQty, setNewVoucherQty] = useState('');
-  const [tab, setTab] = useState<'dashboard' | 'cards' | 'winners' | 'vouchers' | 'settings'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'cards' | 'withdrawals' | 'winners' | 'users' | 'vouchers' | 'settings'>('dashboard');
   const [config, setConfig] = useState<Config>({
     winRate: 0.01,
     upgradeRate: 0.40,
@@ -3102,6 +3165,7 @@ const AdminPanelView = () => {
     fetch('/api/admin/recharges').then(res => res.json()).then(setRecharges);
     fetch('/api/admin/withdrawals').then(res => res.json()).then(setWithdrawals);
     fetch('/api/admin/stats').then(res => res.json()).then(setAdminStats);
+    fetch('/api/admin/users').then(res => res.json()).then(setUsers); // FETCH USERS
     fetch('/api/admin/config').then(res => res.json()).then(data => {
       // Ensure paymentInfo exists
       if (!data.paymentInfo || !data.paymentInfo.bank) {
@@ -3169,6 +3233,16 @@ const AdminPanelView = () => {
     reader.readAsDataURL(file);
   };
 
+  const ADMIN_TABS = [
+    { id: 'dashboard', label: 'Tổng Quan', icon: Activity },
+    { id: 'cards', label: 'Duyệt Thẻ', icon: CreditCard },
+    { id: 'withdrawals', label: 'Duyệt Rút', icon: Banknote },
+    { id: 'winners', label: 'Trúng Giải', icon: Trophy },
+    { id: 'users', label: 'Người Dùng', icon: User }, // NEW TAB
+    { id: 'vouchers', label: 'Mã Voucher', icon: Ticket },
+    { id: 'settings', label: 'Cấu Hình', icon: Settings },
+  ] as const;
+
   return (
     <motion.div 
       key="admin"
@@ -3202,20 +3276,25 @@ const AdminPanelView = () => {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-none">
-        {['dashboard', 'cards', 'withdrawals', 'winners', 'vouchers', 'settings'].map((t) => (                
-          <button 
-            key={t}
-            onClick={() => setTab(t as any)}
-            className={cn(
-              "px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all relative overflow-hidden group border",
-              tab === t ? "bg-gradient-to-r from-yellow-400 to-yellow-600 text-red-900 border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.3)] scale-105" : "bg-black/40 text-slate-400 border-white/5 hover:bg-white/10 hover:border-white/20 hover:text-white"
-            )}
-          >
-            {tab === t && <div className="absolute inset-0 bg-white/20 translate-x-[-100%] skew-x-[-15deg] animate-[sweep_3s_infinite] pointer-events-none" />}
-            <span className="relative z-10">{t === 'dashboard' ? 'Tổng Quan' : t === 'cards' ? 'Duyệt Thẻ' : t === 'withdrawals' ? 'Duyệt Rút' : t === 'winners' ? 'Trúng Giải' : t === 'vouchers' ? 'Mã Voucher' : 'Cấu Hình'}</span>
-          </button>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+        {ADMIN_TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id as any)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all border",
+                tab === t.id
+                  ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]"
+                  : "bg-black/40 text-slate-500 border-white/5 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="space-y-4 admin-scroll">
@@ -3291,7 +3370,40 @@ const AdminPanelView = () => {
           </>
         )}
 
-        {tab === 'cards' && (
+        {tab === 'users' && (
+           <div className="bg-bento-card rounded-[2rem] border border-white/5 shadow-2xl relative overflow-hidden">
+             <div className="overflow-x-auto admin-scroll">
+                <table className="w-full text-left text-xs min-w-[600px]">
+                  <thead className="bg-white/5 text-slate-400 font-black uppercase tracking-widest">
+                    <tr>
+                      <th className="px-5 py-4">TikTok ID</th>
+                      <th className="px-5 py-4">Số dư</th>
+                      <th className="px-5 py-4 text-center">Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {users.map((u: any) => (
+                      <tr key={u.tiktokId} className="hover:bg-white/5 transition-colors">
+                        <td className="px-5 py-4 font-black text-white">{u.tiktokId}</td>
+                        <td className="px-5 py-4 font-bold text-yellow-400">{u.balance.toLocaleString()}đ</td>
+                        <td className="px-5 py-4 text-center">
+                           <button onClick={async () => {
+                              const newBalance = prompt('Nhập số dư mới:', u.balance);
+                              if (newBalance) {
+                                await fetch('/api/admin/users/balance', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tiktokId: u.tiktokId, balance: parseInt(newBalance)}) });
+                                fetchData();
+                              }
+                           }} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black mr-2">Sửa số dư</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+             </div>
+           </div>
+         )}
+         
+         {tab === 'cards' && (
           <div className="bg-bento-card rounded-[2rem] border border-white/5 shadow-2xl relative overflow-hidden">
             <div className="overflow-x-auto admin-scroll">
               <table className="w-full text-left text-xs min-w-[800px]">
@@ -3600,68 +3712,6 @@ const AdminPanelView = () => {
                   <div className="absolute inset-0 bg-white/20 translate-x-[-100%] skew-x-[-15deg] group-hover:animate-sweep pointer-events-none" />
                   <span className="relative z-10 flex items-center justify-center gap-2">PHÁT SÓNG LÊN TOÀN MÁY CHỦ <Megaphone className="w-4 h-4" /></span>
                </button>
-            </div>
-
-            {/* Payment Simulation Test Tool */}
-            <div className="bg-blue-600/10 p-6 rounded-[2.5rem] border border-blue-600/20 shadow-xl space-y-4">
-               <div>
-                  <h3 className="font-black text-blue-400 uppercase italic tracking-widest text-sm mb-1">Kiểm tra nạp tự động</h3>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase italic">Dùng để test Webhook (giả lập Casso/PayOS)</p>
-               </div>
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                     <label className="text-[9px] font-black text-slate-600 uppercase ml-2">ID TikTok Người nhận</label>
-                     <input 
-                        id="test-pay-user" 
-                        placeholder="@username" 
-                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:outline-none focus:border-blue-500"
-                     />
-                  </div>
-                  <div className="space-y-1">
-                     <label className="text-[9px] font-black text-slate-600 uppercase ml-2">Số tiền nạp (VNĐ)</label>
-                     <input 
-                        id="test-pay-amount" 
-                        placeholder="100000" 
-                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:outline-none focus:border-blue-500"
-                     />
-                  </div>
-               </div>
-               <button 
-                  onClick={async () => {
-                    const user = (document.getElementById('test-pay-user') as HTMLInputElement).value;
-                    const amount = (document.getElementById('test-pay-amount') as HTMLInputElement).value;
-                    if (!user || !amount) return toast('Nhập đủ thông tin test');
-                    
-                    try {
-                      const res = await fetch('/api/webhook/payment', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                          amount: parseInt(amount), 
-                          description: `NAP ${user}`, 
-                          status: 'PAID' 
-                        })
-                      });
-                      const data = await res.json();
-                      if (data.success) {
-                        toast('✨ Xử lý thành công! Đã cộng ' + parseInt(amount).toLocaleString() + 'đ cho ' + user);
-                        fetchData();
-                      } else {
-                        toast('❌ Lỗi: ' + data.message);
-                      }
-                    } catch (e) {
-                      toast('❌ Lỗi kết nối server');
-                    }
-                  }}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] uppercase tracking-widest text-[10px] transition-all active:scale-[0.98] relative overflow-hidden group"
-               >
-                  <div className="absolute inset-0 bg-white/20 translate-x-[-100%] skew-x-[-15deg] group-hover:animate-sweep pointer-events-none" />
-                  <span className="relative z-10 flex items-center justify-center gap-2">GIẢ LẬP GIAO DỊCH (TEST WEBHOOK) <CreditCard className="w-4 h-4" /></span>
-               </button>
-               <div className="p-3 bg-black/20 rounded-xl border border-white/5">
-                  <p className="text-[8px] text-slate-500 font-bold uppercase mb-1">Webhook URL của bạn (Dùng cho Casso/PayOS):</p>
-                  <code className="text-[9px] text-yellow-500 break-all">{window.location.origin}/api/webhook/payment</code>
-               </div>
             </div>
 
             {/* Win Rate */}
