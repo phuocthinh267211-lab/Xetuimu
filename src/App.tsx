@@ -112,11 +112,36 @@ const ToastContainer = () => {
 };
 
 
+const activeAudios: { [url: string]: HTMLAudioElement } = {};
+
 const playSound = (url: string) => {
   if (typeof window !== 'undefined' && window.__SOUND_ENABLED__ === false) return;
+  
+  // Stop previously playing sound of the same url to avoid overlapping chatter
+  if (activeAudios[url]) {
+    activeAudios[url].pause();
+    activeAudios[url].currentTime = 0;
+  }
+  
   const audio = new Audio(url);
   audio.volume = 0.5;
+  activeAudios[url] = audio;
+  
   audio.play().catch(() => {}); // Browsers might block auto-play
+  
+  // Clean up when ended
+  audio.onended = () => {
+    if (activeAudios[url] === audio) {
+      delete activeAudios[url];
+    }
+  };
+};
+
+export const stopAllSounds = () => {
+  Object.values(activeAudios).forEach(audio => {
+    audio.pause();
+    audio.currentTime = 0;
+  });
 };
 
 // --- Icons & Assets ---
@@ -222,7 +247,11 @@ const BackgroundEffects = () => {
 export default function App() {
   const [user, setUser] = useState<UserData | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [view, setView] = useState<'home' | 'recharge' | 'collection' | 'account' | 'admin' | 'spin' | 'leaderboard' | 'cart'>('home');
+  const [view, _setView] = useState<'home' | 'recharge' | 'collection' | 'account' | 'admin' | 'spin' | 'leaderboard' | 'cart'>('home');
+  const setView = useCallback((newView: any) => {
+    stopAllSounds();
+    _setView(newView);
+  }, []);
   const [rechargeDraft, setRechargeDraft] = useState<any>(null);
   const [loginInput, setLoginInput] = useState('');
   const [pinInput, setPinInput] = useState('');
@@ -238,7 +267,6 @@ export default function App() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [screenShake, setScreenShake] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [eventsState, setEventsState] = useState<{ envelope: any, shakeEventActive: boolean }>({ envelope: null, shakeEventActive: false });
   const [isShaking, setIsShaking] = useState(false);
   const [insuranceActive, setInsuranceActive] = useState(false);
@@ -820,26 +848,6 @@ export default function App() {
           <span className="font-black text-xl tracking-tighter text-white italic uppercase">BENTO<span className="text-yellow-400">BOX</span></span>
         </div>
 
-        <div className="flex-1 mx-4 relative group">
-          <input 
-              type="text" 
-              placeholder="Tìm kiếm sản phẩm..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-800/50 border border-white/10 text-white rounded-full pl-4 pr-10 py-2 text-xs focus:outline-none focus:border-yellow-400 focus:bg-slate-900 transition-all duration-200"
-          />
-          {searchQuery ? (
-            <button 
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-2 text-slate-400 hover:text-white"
-            >
-              <Search className="w-4 h-4 rotate-45" />
-            </button>
-          ) : (
-            <Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-500" />
-          )}
-        </div>
-
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p className="text-[9px] text-slate-500 font-black uppercase leading-tight tracking-widest">{user.shopName || user.tiktokId}</p>
@@ -872,7 +880,7 @@ export default function App() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
           >
-            {view === 'home' && <HomeView key="home" user={user} setUser={setUser} onOpen={requestOpenBox} onQuickOpen={handleMultiOpen} setView={setView} searchQuery={searchQuery} />}
+            {view === 'home' && <HomeView key="home" user={user} setUser={setUser} onOpen={requestOpenBox} onQuickOpen={handleMultiOpen} setView={setView} />}
             {view === 'spin' && <SpinView key="spin" user={user} setUser={setUser} setScreenShake={setScreenShake} />}
             {view === 'recharge' && <RechargeView key="recharge" user={user} config={config} prefill={rechargeDraft} onUsedPrefill={() => setRechargeDraft(null)} />}
             {view === 'collection' && <CollectionView key="collection" user={user} setUser={setUser} />}
@@ -1366,6 +1374,7 @@ export default function App() {
                        }
                      }
                      
+                     stopAllSounds();
                      setResult(null);
                      toast('Đã hoàn tất đơn hàng! Admin sẽ đóng gói ngay.', 'success');
                    }}
@@ -1403,7 +1412,10 @@ export default function App() {
                 
                 <div className="flex flex-col gap-4">
                   <button 
-                    onClick={() => setResult(null)}
+                    onClick={() => {
+                      stopAllSounds();
+                      setResult(null);
+                    }}
                     className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-red-900 font-black px-12 py-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(234,179,8,0.4)] uppercase tracking-[0.1em] text-lg active:scale-95 transition-all border-b-4 border-yellow-700 relative overflow-hidden group hover:shadow-[0_20px_80px_rgba(234,179,8,0.6)]"
                   >
                     <div className="absolute inset-0 bg-white/20 translate-x-[-100%] skew-x-[-15deg] group-hover:animate-sweep pointer-events-none" />
@@ -1412,7 +1424,13 @@ export default function App() {
                        THỬ LẠI NGAY <Gift className="w-5 h-5 text-red-900 group-hover:animate-bounce-subtle" />
                     </span>
                   </button>
-                  <button onClick={() => setResult(null)} className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors relative group">
+                  <button 
+                    onClick={() => {
+                      stopAllSounds();
+                      setResult(null);
+                    }} 
+                    className="text-slate-500 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors relative group"
+                  >
                     Để sau vậy
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-slate-500 group-hover:w-full transition-all duration-300" />
                   </button>
@@ -1457,7 +1475,10 @@ export default function App() {
                   ))}
                </div>
                <button 
-                  onClick={() => setMultiOpenResult(null)}
+                  onClick={() => {
+                    stopAllSounds();
+                    setMultiOpenResult(null);
+                  }}
                   className="w-full mt-6 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl active:scale-95 transition-all text-sm uppercase tracking-widest"
                >
                   TUYỆT VỜI
@@ -1597,12 +1618,11 @@ const MiniGameBento: React.FC<{ setView: (view: any) => void }> = ({ setView }) 
   );
 };
 
-const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen: (id: string) => void, onQuickOpen: (id: string, count: number) => void, setView: (view: any) => void, searchQuery: string }> = ({ user, setUser, onOpen, onQuickOpen, setView, searchQuery }) => {
+const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen: (id: string) => void, onQuickOpen: (id: string, count: number) => void, setView: (view: any) => void }> = ({ user, setUser, onOpen, onQuickOpen, setView }) => {
   const [boxes, setBoxes] = useState<any[]>([]);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [jackpot, setJackpot] = useState<number>(0);
-  const filteredBoxes = boxes.filter(box => box.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   useEffect(() => {
     fetch('/api/admin/config').then(res => res.json()).then(data => setBoxes(data.prices || []));
@@ -1711,13 +1731,12 @@ const HomeView: React.FC<{ user: UserData, setUser: (user: any) => void, onOpen:
         </button>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        {filteredBoxes.length === 0 ? (
+        {boxes.length === 0 ? (
           <div className="col-span-2 py-10 text-center text-slate-500 font-medium">
-            <p className="text-sm">Không tìm thấy sản phẩm nào phù hợp.</p>
-            <p className="text-xs mt-1">Hãy thử tìm kiếm với từ khóa khác.</p>
+            <p className="text-sm">Chưa có sản phẩm nào.</p>
           </div>
         ) : (
-          filteredBoxes.map((box, idx) => {
+          boxes.map((box, idx) => {
             const isWide = idx % 3 === 0; // Every 3rd box is wide (e.g. 0, 3, 6)
             return (
               <motion.div 
